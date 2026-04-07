@@ -31,13 +31,14 @@ import {
   Smartphone,
   Laptop,
   PlusCircle,
-  MessageSquare
+  MessageSquare,
+  Plug
 } from 'lucide-react';
 import { Card, Button, Input } from '@/src/components/ui-base';
 import { cn } from '@/src/lib/utils';
 
 // --- Types ---
-type View = 'login' | 'register' | 'dashboard' | 'analytics' | 'scheduler';
+type View = 'login' | 'register' | 'dashboard' | 'analytics' | 'scheduler' | 'integrations';
 type User = { id: string; name: string; email: string };
 
 const BASE_URL = 'http://localhost:5000/api';
@@ -88,70 +89,151 @@ const RECENT_POSTS = [
 
 // --- Components ---
 
-const Navbar = ({ currentView, setView, onLogout }: { currentView: View, setView: (v: View) => void, onLogout?: () => void }) => (
-  <nav className="fixed top-0 w-full z-50 glass-effect border-b border-outline-variant/10">
-    <div className="flex justify-between items-center px-8 h-20 w-full max-w-7xl mx-auto">
-      <div className="flex items-center gap-12">
-        <span className="text-2xl font-bold tracking-tighter text-primary cursor-pointer" onClick={() => setView('dashboard')}>SocialOps</span>
-        <div className="hidden md:flex items-center gap-8">
-          {[
-            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-            { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-            { id: 'scheduler', label: 'Scheduler', icon: Calendar },
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setView(item.id as View)}
-              className={cn(
-                "relative text-sm font-display font-bold tracking-wide transition-all duration-300",
-                currentView === item.id ? "text-primary" : "text-on-surface-variant hover:text-primary"
-              )}
-            >
-              {item.label}
-              {currentView === item.id && (
+const Navbar = ({ currentView, setView, user, onLogout }: { currentView: View, setView: (v: View) => void, user: User | null, onLogout: () => void }) => {
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'scheduler', label: 'Scheduler', icon: Calendar },
+    { id: 'integrations', label: 'Integrations', icon: Plug },
+  ];
+
+  const searchResults = navItems.filter(item => 
+    searchQuery && item.label.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const getInitials = (name?: string) => {
+    if (!name) return 'U';
+    return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  };
+
+  return (
+    <nav className="fixed top-0 w-full z-50 glass-effect border-b border-outline-variant/10">
+      <div className="flex justify-between items-center px-8 h-20 w-full max-w-7xl mx-auto">
+        <div className="flex items-center gap-12">
+          <span className="text-2xl font-bold tracking-tighter text-primary cursor-pointer" onClick={() => setView('dashboard')}>SocialOps</span>
+          <div className="hidden md:flex items-center gap-8">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setView(item.id as View)}
+                className={cn(
+                  "relative text-sm font-display font-bold tracking-wide transition-all duration-300",
+                  currentView === item.id ? "text-primary" : "text-on-surface-variant hover:text-primary"
+                )}
+              >
+                {item.label}
+                {currentView === item.id && (
+                  <motion.div 
+                    layoutId="nav-underline"
+                    className="absolute -bottom-1 left-0 w-full h-0.5 bg-primary rounded-full"
+                  />
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-6">
+          <div className="relative">
+            <div className="hidden lg:flex items-center bg-surface-container px-4 py-2 rounded-xl border border-transparent focus-within:border-primary/30 focus-within:bg-surface-container-lowest transition-all">
+              <Search className="text-on-surface-variant/50 w-4 h-4 mr-2" />
+              <input 
+                className="bg-transparent border-none focus:ring-0 text-sm w-48 font-sans placeholder:text-on-surface-variant/50 outline-none" 
+                placeholder="Search views..." 
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            {/* Search Dropdown */}
+            <AnimatePresence>
+              {searchResults.length > 0 && (
                 <motion.div 
-                  layoutId="nav-underline"
-                  className="absolute -bottom-1 left-0 w-full h-0.5 bg-primary rounded-full"
-                />
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="absolute top-full mt-2 w-full bg-surface-container-lowest border border-outline-variant/10 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1"
+                >
+                  {searchResults.map(result => (
+                    <button
+                      key={result.id}
+                      onClick={() => {
+                        setView(result.id as View);
+                        setSearchQuery('');
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm font-bold text-on-surface hover:bg-surface-container rounded-lg transition-colors flex items-center gap-3"
+                    >
+                      <result.icon className="w-4 h-4 text-primary" />
+                      {result.label}
+                    </button>
+                  ))}
+                </motion.div>
               )}
+            </AnimatePresence>
+          </div>
+          
+          <div className="relative">
+            <button 
+              className="p-2 text-on-surface-variant hover:bg-surface-container rounded-xl transition-all relative"
+              onClick={() => setNotifOpen(!notifOpen)}
+            >
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-background"></span>
             </button>
-          ))}
+            
+            {/* Notifications Dropdown */}
+            <AnimatePresence>
+              {notifOpen && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute right-0 top-full mt-2 w-80 bg-surface-container-lowest border border-outline-variant/10 rounded-2xl shadow-2xl p-4 z-50"
+                  style={{ transformOrigin: 'top right' }}
+                >
+                  <h4 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-3 px-2">Notifications</h4>
+                  <div className="space-y-1">
+                    <div className="p-3 bg-surface-container/30 rounded-xl hover:bg-surface-container transition-colors cursor-pointer">
+                      <p className="text-sm font-bold">Your post is trending!</p>
+                      <p className="text-xs text-on-surface-variant mt-1">Spring Campaign Teaser reached 10k views.</p>
+                    </div>
+                    <div className="p-3 bg-surface-container/30 rounded-xl hover:bg-surface-container transition-colors cursor-pointer">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Sparkles className="w-3 h-3 text-primary" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Insight</span>
+                      </div>
+                      <p className="text-sm font-bold">New follower milestone reached</p>
+                      <p className="text-xs text-on-surface-variant mt-1">You just crossed 850k total followers.</p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+          
+          <button 
+            className="h-10 w-10 rounded-full overflow-hidden border-2 border-white shadow-sm flex items-center justify-center bg-primary text-white font-bold text-sm tracking-widest hover:scale-105 transition-transform" 
+            onClick={onLogout}
+          >
+            {getInitials(user?.name)}
+          </button>
         </div>
       </div>
-      <div className="flex items-center gap-6">
-        <div className="hidden lg:flex items-center bg-surface-container px-4 py-2 rounded-xl">
-          <Search className="text-on-surface-variant/50 w-4 h-4 mr-2" />
-          <input 
-            className="bg-transparent border-none focus:ring-0 text-sm w-48 font-sans placeholder:text-on-surface-variant/50" 
-            placeholder="Search metrics..." 
-            type="text"
-          />
-        </div>
-        <button className="p-2 text-on-surface-variant hover:bg-surface-container rounded-xl transition-all">
-          <Bell className="w-5 h-5" />
-        </button>
-        <div className="h-10 w-10 rounded-full overflow-hidden border-2 border-white shadow-sm cursor-pointer" onClick={() => onLogout ? onLogout() : setView('login')}>
-          <img 
-            alt="User Profile" 
-            className="w-full h-full object-cover" 
-            src="https://picsum.photos/seed/user1/100/100"
-            referrerPolicy="no-referrer"
-          />
-        </div>
-      </div>
-    </div>
-  </nav>
-);
+    </nav>
+  );
+};
 
 const Footer = () => (
   <footer className="w-full py-12 border-t border-outline-variant/10 mt-20">
     <div className="max-w-7xl mx-auto px-8 flex flex-col md:flex-row justify-between items-center gap-6">
       <div className="text-on-surface-variant/50 text-[10px] font-bold uppercase tracking-widest">
-        © 2024 SocialOps. All rights reserved.
+        © 2025 SocialOps. All rights reserved.
       </div>
       <div className="flex gap-8">
         {['Privacy Policy', 'Terms of Service', 'Help Center'].map((link) => (
-          <a key={link} href="#" className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 hover:text-primary transition-colors">
+          <a key={link} href="#" target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 hover:text-primary transition-colors">
             {link}
           </a>
         ))}
@@ -668,7 +750,7 @@ const CreatePostModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
   );
 };
 
-const DashboardView = ({ setView, userName, onLogout, openCreateModal }: { setView: (v: View) => void, userName?: string, onLogout: () => void, openCreateModal: () => void }) => {
+const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: (v: View) => void, user: User | null, onLogout: () => void, openCreateModal: () => void }) => {
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -693,7 +775,7 @@ const DashboardView = ({ setView, userName, onLogout, openCreateModal }: { setVi
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar currentView="dashboard" setView={setView} onLogout={onLogout} />
+      <Navbar currentView="dashboard" setView={setView} user={user} onLogout={onLogout} />
       <main className="pt-32 pb-20 px-8 max-w-7xl mx-auto">
         <motion.header 
           initial={{ opacity: 0, y: -20 }}
@@ -702,7 +784,7 @@ const DashboardView = ({ setView, userName, onLogout, openCreateModal }: { setVi
         >
           <div>
             <p className="text-secondary font-bold tracking-[0.2em] text-[10px] uppercase mb-3">Editorial Workspace</p>
-            <h1 className="text-5xl font-extrabold tracking-tight">Morning, {userName || 'Editor'}.</h1>
+            <h1 className="text-5xl font-extrabold tracking-tight">Morning, {user?.name || 'Editor'}.</h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex -space-x-3 items-center mr-6">
@@ -964,7 +1046,7 @@ const DashboardView = ({ setView, userName, onLogout, openCreateModal }: { setVi
   );
 };
 
-const AnalyticsView = ({ setView, onLogout }: { setView: (v: View) => void, onLogout: () => void }) => {
+const AnalyticsView = ({ setView, user, onLogout }: { setView: (v: View) => void, user: User | null, onLogout: () => void }) => {
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -989,7 +1071,7 @@ const AnalyticsView = ({ setView, onLogout }: { setView: (v: View) => void, onLo
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar currentView="analytics" setView={setView} onLogout={onLogout} />
+      <Navbar currentView="analytics" setView={setView} user={user} onLogout={onLogout} />
       <main className="pt-32 pb-20 px-8 max-w-7xl mx-auto">
         <motion.header 
           initial={{ opacity: 0, x: -20 }}
@@ -1212,7 +1294,7 @@ const AnalyticsView = ({ setView, onLogout }: { setView: (v: View) => void, onLo
   );
 };
 
-const SchedulerView = ({ setView, onLogout, openCreateModal }: { setView: (v: View) => void, onLogout: () => void, openCreateModal: () => void }) => {
+const SchedulerView = ({ setView, user, onLogout, openCreateModal }: { setView: (v: View) => void, user: User | null, onLogout: () => void, openCreateModal: () => void }) => {
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -1237,7 +1319,7 @@ const SchedulerView = ({ setView, onLogout, openCreateModal }: { setView: (v: Vi
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar currentView="scheduler" setView={setView} onLogout={onLogout} />
+      <Navbar currentView="scheduler" setView={setView} user={user} onLogout={onLogout} />
       <main className="pt-32 pb-20 px-8 max-w-7xl mx-auto">
         <motion.header 
           initial={{ opacity: 0, y: -20 }}
@@ -1429,6 +1511,20 @@ const SchedulerView = ({ setView, onLogout, openCreateModal }: { setView: (v: Vi
   );
 };
 
+const IntegrationsView = ({ setView, user, onLogout }: { setView: (v: View) => void, user: User | null, onLogout: () => void }) => (
+  <div className="min-h-screen bg-background flex flex-col">
+    <Navbar currentView="integrations" setView={setView} user={user} onLogout={onLogout} />
+    <main className="flex-1 flex flex-col items-center justify-center p-8 text-center pt-32">
+      <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-6">
+        <Plug className="text-primary w-8 h-8" />
+      </div>
+      <h1 className="text-4xl font-extrabold tracking-tight mb-4">Integrations</h1>
+      <p className="text-on-surface-variant max-w-md">Connect your favorite tools and platforms. Integrations coming soon.</p>
+    </main>
+    <Footer />
+  </div>
+);
+
 export default function App() {
   const [view, setView] = useState<View>('login');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -1474,9 +1570,10 @@ export default function App() {
         >
           {view === 'login' && <LoginView setView={setView} setCurrentUser={setCurrentUser} />}
           {view === 'register' && <RegisterView setView={setView} setCurrentUser={setCurrentUser} />}
-          {view === 'dashboard' && <DashboardView setView={setView} userName={currentUser?.name} onLogout={handleLogout} openCreateModal={() => setIsCreateModalOpen(true)} />}
-          {view === 'analytics' && <AnalyticsView setView={setView} onLogout={handleLogout} />}
-          {view === 'scheduler' && <SchedulerView setView={setView} onLogout={handleLogout} openCreateModal={() => setIsCreateModalOpen(true)} />}
+          {view === 'dashboard' && <DashboardView setView={setView} user={currentUser} onLogout={handleLogout} openCreateModal={() => setIsCreateModalOpen(true)} />}
+          {view === 'analytics' && <AnalyticsView setView={setView} user={currentUser} onLogout={handleLogout} />}
+          {view === 'scheduler' && <SchedulerView setView={setView} user={currentUser} onLogout={handleLogout} openCreateModal={() => setIsCreateModalOpen(true)} />}
+          {view === 'integrations' && <IntegrationsView setView={setView} user={currentUser} onLogout={handleLogout} />}
         </motion.div>
       </AnimatePresence>
 
