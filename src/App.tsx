@@ -48,46 +48,23 @@ const getToken = () => localStorage.getItem('token');
 const removeToken = () => localStorage.removeItem('token');
 
 // --- Mock Data ---
-const RECENT_POSTS = [
-  {
-    id: 1,
-    title: "How we built the world's first decentralized analytics engine...",
-    date: "May 24, 2024",
-    likes: "12k",
-    comments: "402",
-    type: "REEL",
-    image: "https://picsum.photos/seed/abstract1/800/600"
-  },
-  {
-    id: 2,
-    title: "The future of generative art and social identity...",
-    date: "May 22, 2024",
-    likes: "8.4k",
-    comments: "128",
-    type: "CAROUSEL",
-    image: "https://picsum.photos/seed/abstract2/800/600"
-  },
-  {
-    id: 3,
-    title: "Behind the scenes at the New York studio tour...",
-    date: "May 21, 2024",
-    likes: "2.1k",
-    comments: "45",
-    type: "STORY",
-    image: "https://picsum.photos/seed/abstract3/800/600"
-  },
-  {
-    id: 4,
-    title: "10 tips for creating high-impact visuals in 2024...",
-    date: "May 19, 2024",
-    likes: "24k",
-    comments: "1.1k",
-    type: "REEL",
-    image: "https://picsum.photos/seed/abstract4/800/600"
-  }
-];
 
 // --- Components ---
+
+const Toast = ({ message, onClose }: { message: string, onClose: () => void }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 50, scale: 0.9 }}
+    animate={{ opacity: 1, y: 0, scale: 1 }}
+    exit={{ opacity: 0, y: 20, scale: 0.9 }}
+    className="fixed bottom-8 right-8 z-[100] glass-effect bg-[rgba(0,0,0,0.8)] text-white px-6 py-4 rounded-xl flex items-center gap-3 shadow-2xl"
+  >
+    <Check className="w-5 h-5 text-primary" />
+    <span className="text-sm font-bold tracking-wide">{message}</span>
+    <button onClick={onClose} className="ml-4 text-white/50 hover:text-white transition-colors">
+      <X className="w-4 h-4" />
+    </button>
+  </motion.div>
+);
 
 const Navbar = ({ currentView, setView, user, onLogout }: { currentView: View, setView: (v: View) => void, user: User | null, onLogout: () => void }) => {
   const [notifOpen, setNotifOpen] = useState(false);
@@ -751,6 +728,66 @@ const CreatePostModal = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
 };
 
 const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: (v: View) => void, user: User | null, onLogout: () => void, openCreateModal: () => void }) => {
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
+  const [recentPosts, setRecentPosts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const token = getToken();
+      if (!token) {
+        onLogout();
+        return;
+      }
+      try {
+        const [statsRes, postsRes] = await Promise.all([
+          fetch(`${BASE_URL}/dashboard/stats`, { headers: { Authorization: `Bearer ${token}` } }),
+          fetch(`${BASE_URL}/posts/recent`, { headers: { Authorization: `Bearer ${token}` } })
+        ]);
+
+        if (statsRes.status === 401 || postsRes.status === 401) {
+          onLogout();
+          return;
+        }
+
+        if (!statsRes.ok || !postsRes.ok) throw new Error('Failed to fetch data');
+
+        const stats = await statsRes.json();
+        const posts = await postsRes.json();
+
+        setDashboardStats(stats);
+        setRecentPosts(posts);
+      } catch (err) {
+        setError('Failed to load dashboard data. Please make sure the backend server was restarted.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [onLogout]);
+
+  const handleApplyInsight = async () => {
+    try {
+      const token = getToken();
+      const res = await fetch(`${BASE_URL}/dashboard/apply-insight`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ insightId: 'peak-time' })
+      });
+      if (res.ok) {
+        setToast("Insight applied! Posts scheduled for 6 PM.");
+        setTimeout(() => setToast(null), 3000);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -773,10 +810,34 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background relative">
+        <Navbar currentView="dashboard" setView={setView} user={user} onLogout={onLogout} />
+        <main className="pt-32 pb-20 px-8 max-w-7xl mx-auto space-y-8 animate-pulse">
+          <div className="h-20 bg-surface-container/50 rounded-xl max-w-sm mb-16"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="h-64 bg-surface-container/50 rounded-3xl"></div>
+            <div className="lg:col-span-2 h-64 bg-surface-container/50 rounded-3xl"></div>
+            <div className="h-96 bg-surface-container/50 rounded-3xl"></div>
+            <div className="h-96 bg-surface-container/50 rounded-3xl"></div>
+            <div className="h-96 bg-surface-container/50 rounded-3xl"></div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background relative">
       <Navbar currentView="dashboard" setView={setView} user={user} onLogout={onLogout} />
       <main className="pt-32 pb-20 px-8 max-w-7xl mx-auto">
+        {error && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 p-4 bg-red-50 text-red-600 border border-red-200 rounded-xl flex items-center gap-3 font-bold text-sm">
+            <X className="w-5 h-5 flex-shrink-0" />
+            {error}
+          </motion.div>
+        )}
         <motion.header 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -784,7 +845,7 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
         >
           <div>
             <p className="text-secondary font-bold tracking-[0.2em] text-[10px] uppercase mb-3">Editorial Workspace</p>
-            <h1 className="text-5xl font-extrabold tracking-tight">Morning, {user?.name || 'Editor'}.</h1>
+            <h1 className="text-5xl font-extrabold tracking-tight">Morning, {user?.name?.split(' ')[0] || 'Editor'}.</h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex -space-x-3 items-center mr-6">
@@ -818,11 +879,11 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
               <div className="flex justify-between items-start mb-8">
                 <div>
                   <span className="text-on-surface-variant/50 font-bold text-[10px] uppercase tracking-widest">Total Followers</span>
-                  <h2 className="text-5xl font-extrabold mt-3 tracking-tighter">842,910</h2>
+                  <h2 className="text-5xl font-extrabold mt-3 tracking-tighter">{dashboardStats?.followers?.total?.toLocaleString()}</h2>
                 </div>
                 <div className="flex items-center gap-1 bg-teal-50 text-teal-600 px-3 py-1 rounded-full text-[10px] font-bold">
                   <ArrowUp className="w-3 h-3" />
-                  12.4%
+                  {dashboardStats?.followers?.growthPercent}%
                 </div>
               </div>
               <div className="w-full h-32 mt-4 relative overflow-hidden">
@@ -864,21 +925,21 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                 <div className="flex-grow">
                   <div className="flex items-center gap-3 mb-3">
                     <span className="bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-widest">Smart Insight</span>
-                    <span className="text-on-surface-variant/50 text-[10px] font-bold uppercase tracking-widest">98% Confidence</span>
+                    <span className="text-on-surface-variant/50 text-[10px] font-bold uppercase tracking-widest">{dashboardStats?.smartInsight?.confidence}% Confidence</span>
                   </div>
                   <p className="text-2xl font-bold leading-tight">
-                    Your engagement spikes at <span className="text-primary">6 PM</span> — schedule more posts here to maximize reach.
+                    {dashboardStats?.smartInsight?.text}
                   </p>
                   <div className="mt-8 w-full h-2 bg-primary/10 rounded-full overflow-hidden">
                     <motion.div 
                       initial={{ width: 0 }}
-                      animate={{ width: '98%' }}
+                      animate={{ width: `${dashboardStats?.smartInsight?.confidence || 0}%` }}
                       transition={{ duration: 1, delay: 0.5 }}
                       className="h-full bg-primary rounded-full" 
                     />
                   </div>
                 </div>
-                <Button variant="white" className="flex-shrink-0">Apply Now</Button>
+                <Button variant="white" className="flex-shrink-0" onClick={handleApplyInsight}>Apply Now</Button>
               </div>
               <div className="absolute -bottom-10 -right-10 w-48 h-48 bg-primary/5 rounded-full blur-3xl" />
             </Card>
@@ -892,28 +953,24 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                 <p className="text-on-surface-variant/50 text-[10px] font-bold uppercase tracking-widest">Top performing territories</p>
               </div>
               <div className="space-y-8">
-                {[
-                  { label: 'United States', value: 42, color: 'bg-primary' },
-                  { label: 'United Kingdom', value: 18, color: 'bg-secondary' },
-                  { label: 'Germany', value: 12, color: 'bg-tertiary' },
-                ].map(item => (
-                  <div key={item.label}>
+                {dashboardStats?.audienceBreakdown?.map((item: any, idx: number) => (
+                  <div key={item.country}>
                     <div className="flex justify-between items-center mb-3">
-                      <span className="text-sm font-bold">{item.label}</span>
-                      <span className="text-sm font-bold">{item.value}%</span>
+                      <span className="text-sm font-bold">{item.country}</span>
+                      <span className="text-sm font-bold">{item.percent}%</span>
                     </div>
                     <div className="w-full h-3 bg-surface-container rounded-full overflow-hidden">
                       <motion.div 
                         initial={{ width: 0 }}
-                        whileInView={{ width: `${item.value}%` }}
+                        whileInView={{ width: `${item.percent}%` }}
                         viewport={{ once: true }}
                         transition={{ duration: 1, ease: "easeOut" }}
-                        className={cn("h-full rounded-full", item.color)} 
+                        className={cn("h-full rounded-full", idx === 0 ? 'bg-primary' : idx === 1 ? 'bg-secondary' : 'bg-tertiary')} 
                       />
                     </div>
                   </div>
                 ))}
-                <Button variant="ghost" className="w-full mt-4">View Full Report</Button>
+                <Button variant="ghost" className="w-full mt-4" onClick={() => setView('analytics')}>View Full Report</Button>
               </div>
             </Card>
           </motion.div>
@@ -933,7 +990,7 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                 </div>
               </div>
               <div className="grid grid-cols-7 gap-3">
-                {Array.from({ length: 28 }).map((_, i) => (
+                {dashboardStats?.activityDensity?.map((val: number, i: number) => (
                   <motion.div 
                     key={i}
                     whileHover={{ scale: 1.2 }}
@@ -942,9 +999,9 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                     transition={{ delay: i * 0.02 }}
                     className={cn(
                       "aspect-square rounded-full cursor-pointer",
-                      [0, 4, 8, 12, 16, 20, 24].includes(i) ? "bg-primary" : 
-                      [1, 5, 9, 13, 17, 21, 25].includes(i) ? "bg-primary/60" : 
-                      [2, 6, 10, 14, 18, 22, 26].includes(i) ? "bg-primary/30" : "bg-primary/10"
+                      val >= 0.8 ? "bg-primary" : 
+                      val >= 0.5 ? "bg-primary/60" : 
+                      val >= 0.2 ? "bg-primary/30" : "bg-primary/10"
                     )}
                   />
                 ))}
@@ -962,8 +1019,8 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                     <span className="w-2 h-2 rounded-full bg-tertiary animate-ping" />
                     <span className="text-[10px] font-bold uppercase tracking-widest text-tertiary">Anomaly Detected</span>
                   </div>
-                  <h3 className="text-xl font-bold leading-snug">Unusual growth spike in Southeast Asia</h3>
-                  <p className="text-on-surface-variant/70 text-xs mt-3">Likely viral redistribution of your last post.</p>
+                  <h3 className="text-xl font-bold leading-snug">{dashboardStats?.anomaly?.title}</h3>
+                  <p className="text-on-surface-variant/70 text-xs mt-3">{dashboardStats?.anomaly?.description}</p>
                 </div>
                 <div className="mt-10 flex items-end gap-2 h-24">
                   {[20, 35, 25, 95, 30, 15, 20].map((h, i) => (
@@ -988,7 +1045,7 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
         <section className="mt-24">
           <div className="flex justify-between items-center mb-10">
             <h3 className="text-3xl font-bold">Recent Performance</h3>
-            <button className="text-sm font-bold text-primary flex items-center gap-2 group">
+            <button className="text-sm font-bold text-primary flex items-center gap-2 group" onClick={() => setView('scheduler')}>
               View Archive 
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </button>
@@ -1000,38 +1057,45 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
             viewport={{ once: true }}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"
           >
-            {RECENT_POSTS.map(post => (
-              <motion.div key={post.id} variants={itemVariants}>
-                <Card className="overflow-hidden group cursor-pointer hover:-translate-y-2 transition-all duration-300">
-                  <div className="h-52 relative overflow-hidden">
-                    <img 
-                      alt={post.title} 
-                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
-                      src={post.image}
-                      referrerPolicy="no-referrer"
-                    />
-                    <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
-                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-lg text-[10px] font-bold tracking-widest">
-                      {post.type}
-                    </div>
-                  </div>
-                  <div className="p-6">
-                    <div className="flex items-center justify-between mb-5">
-                      <span className="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest">{post.date}</span>
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-on-surface-variant">
-                          <Heart className="w-3.5 h-3.5" /> {post.likes}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-on-surface-variant">
-                          <MessageCircle className="w-3.5 h-3.5" /> {post.comments}
-                        </div>
+            {recentPosts.length === 0 ? (
+              <div className="col-span-full border-2 border-dashed border-outline-variant/30 rounded-3xl p-12 flex flex-col items-center justify-center gap-4 text-on-surface-variant/50">
+                <p className="text-lg font-bold">No posts yet</p>
+                <Button onClick={openCreateModal}>Create your first post</Button>
+              </div>
+            ) : (
+              recentPosts.map(post => (
+                <motion.div key={post.id} variants={itemVariants}>
+                  <Card className="overflow-hidden group cursor-pointer hover:-translate-y-2 transition-all duration-300">
+                    <div className="h-52 relative overflow-hidden">
+                      <img 
+                        alt={post.title} 
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                        src={post.image || `https://picsum.photos/seed/${post.id}/800/600`}
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
+                      <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-md px-3 py-1 rounded-lg text-[10px] font-bold tracking-widest">
+                        {post.type}
                       </div>
                     </div>
-                    <h4 className="font-bold text-sm leading-relaxed line-clamp-2">{post.title}</h4>
-                  </div>
-                </Card>
-              </motion.div>
-            ))}
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-5">
+                        <span className="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest">{post.date}</span>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-on-surface-variant">
+                            <Heart className="w-3.5 h-3.5" /> {post.likes}
+                          </div>
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-on-surface-variant">
+                            <MessageCircle className="w-3.5 h-3.5" /> {post.comments}
+                          </div>
+                        </div>
+                      </div>
+                      <h4 className="font-bold text-sm leading-relaxed line-clamp-2">{post.title}</h4>
+                    </div>
+                  </Card>
+                </motion.div>
+              ))
+            )}
           </motion.div>
         </section>
       </main>
@@ -1042,6 +1106,10 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
       >
         <Plus className="w-6 h-6" />
       </button>
+
+      <AnimatePresence>
+        {toast && <Toast message={toast} onClose={() => setToast(null)} />}
+      </AnimatePresence>
     </div>
   );
 };
