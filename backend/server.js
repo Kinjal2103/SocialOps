@@ -8,6 +8,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const postRoutes = require('./routes/posts');
 const schedulerRoutes = require('./routes/scheduler');
 const analyticsRoutes = require('./routes/analytics');
+const integrationRoutes = require('./routes/integrations');
 
 const app = express();
 
@@ -26,6 +27,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/scheduler', schedulerRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/integrations', integrationRoutes);
 
 const path = require('path');
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
