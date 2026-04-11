@@ -1,15 +1,19 @@
-const { GoogleGenAI } = require('@google/genai');
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-const generateInsight = async (engagementData) => {
+export const generateInsight = async (engagementData) => {
+  const genAI = new GoogleGenerativeAI((process.env.GEMINI_API_KEY || '').trim());
   console.log("🤖 Generating fresh AI insight...");
+
   const fallback = {
-    text: "Your engagement spikes at 6 PM — schedule more posts here to maximize reach.",
+    text: "Your engagement spikes at 6 PM — schedule more posts here.",
     confidence: 98
   };
 
   try {
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash"
+    });
+
     const prompt = `You are a social media analytics AI for a platform called SocialOps.
 Based on the following engagement data, generate ONE actionable insight
 for the user. Keep it under 20 words. Be specific and data-driven.
@@ -23,31 +27,22 @@ Data:
 - Total followers: ${engagementData.totalFollowers}
 - Top audience country: ${engagementData.audienceTopCountry}
 
-Respond with ONLY a JSON object in this exact format, nothing else:
-{
-  "insight": "your insight text here",
-  "confidence": 95
-}
-confidence must be a number between 85 and 99.`;
+Respond with ONLY JSON:
+{"insight":"...", "confidence":95}`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: prompt,
-    });
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
 
-    let responseText = response.text || '';
-    responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-
-    const parsed = JSON.parse(responseText);
+    const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleaned);
 
     return {
       text: parsed.insight,
       confidence: parsed.confidence
     };
+
   } catch (error) {
-    console.error("⚠️ Gemini failed, using fallback insight");
+    console.error("⚠️ Gemini failed, using fallback insight:", error);
     return fallback;
   }
 };
-
-module.exports = { generateInsight };

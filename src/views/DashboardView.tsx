@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Search, Bell, Plus, ArrowUp, Sparkles, Heart, MessageCircle, ArrowRight,
@@ -13,6 +13,15 @@ import type { View, User } from '../types';
 import { BASE_URL, getToken, saveToken, removeToken } from '../constants';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
+import { Toast } from '../components/Toast';
+
+const getGreeting = (name: string) => {
+  const hour = new Date().getHours();
+  const firstName = name?.split(' ')[0] || 'there';
+  if (hour < 12) return `Morning, ${firstName}.`;
+  if (hour < 17) return `Afternoon, ${firstName}.`;
+  return `Evening, ${firstName}.`;
+}
 
 const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: (v: View) => void, user: User | null, onLogout: () => void, openCreateModal: () => void }) => {
   const [dashboardStats, setDashboardStats] = useState<any>(null);
@@ -23,38 +32,41 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
   const [isInsightApplied, setIsInsightApplied] = useState(false);
 
   useEffect(() => {
-    const fetchData = async () => {
-      const token = getToken();
-      if (!token) {
-        onLogout();
-        return;
-      }
+    const fetchDashboard = async () => {
       try {
-        const [statsRes, postsRes] = await Promise.all([
-          fetch(`${BASE_URL}/dashboard/stats`, { headers: { Authorization: `Bearer ${token}` } }),
-          fetch(`${BASE_URL}/posts/recent`, { headers: { Authorization: `Bearer ${token}` } })
-        ]);
-
-        if (statsRes.status === 401 || postsRes.status === 401) {
+        setIsLoading(true);
+        const token = getToken();
+        if (!token) {
           onLogout();
           return;
         }
-
+        const [statsRes, postsRes] = await Promise.all([
+          fetch(`${BASE_URL}/dashboard/stats`, {
+            headers: { Authorization: `Bearer ${token}` }
+          }),
+          fetch(`${BASE_URL}/posts/recent`, {
+            headers: { Authorization: `Bearer ${token}` }
+          })
+        ]);
+        if (statsRes.status === 401 || postsRes.status === 401) {
+          removeToken();
+          setView('login');
+          return;
+        }
         if (!statsRes.ok || !postsRes.ok) throw new Error('Failed to fetch data');
-
-        const stats = await statsRes.json();
-        const posts = await postsRes.json();
-
-        setDashboardStats(stats);
-        setRecentPosts(posts);
+        const statsData = await statsRes.json();
+        const postsData = await postsRes.json();
+        setDashboardStats(statsData);
+        setRecentPosts(postsData);
       } catch (err) {
+        console.error('Dashboard fetch error:', err);
         setError('Failed to load dashboard data. Please make sure the backend server was restarted.');
       } finally {
         setIsLoading(false);
       }
     };
-    fetchData();
-  }, [onLogout]);
+    fetchDashboard();
+  }, [onLogout, setView]);
 
   const handleApplyInsight = async () => {
     try {
@@ -79,43 +91,19 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
 
   const containerVariants = {
     hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
-      }
-    }
+    visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
   };
 
   const itemVariants = {
     hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        type: "spring",
-        stiffness: 100
-      }
-    }
+    visible: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 100 } }
   };
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-background relative">
-        <Navbar currentView="dashboard" setView={setView} user={user} onLogout={onLogout} />
-        <main className="pt-32 pb-20 px-8 max-w-7xl mx-auto space-y-8 animate-pulse">
-          <div className="h-20 bg-surface-container/50 rounded-xl max-w-sm mb-16"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div className="h-64 bg-surface-container/50 rounded-3xl"></div>
-            <div className="lg:col-span-2 h-64 bg-surface-container/50 rounded-3xl"></div>
-            <div className="h-96 bg-surface-container/50 rounded-3xl"></div>
-            <div className="h-96 bg-surface-container/50 rounded-3xl"></div>
-            <div className="h-96 bg-surface-container/50 rounded-3xl"></div>
-          </div>
-        </main>
-      </div>
-    );
-  }
+  const teamMembers = [
+    { name: "Alex R", color: "bg-primary text-white" },
+    { name: "Sam K", color: "bg-secondary text-white" },
+    { name: "Jordan T", color: "bg-tertiary text-white" }
+  ];
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -134,19 +122,18 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
         >
           <div>
             <p className="text-secondary font-bold tracking-[0.2em] text-[10px] uppercase mb-3">Editorial Workspace</p>
-            <h1 className="text-5xl font-extrabold tracking-tight">Morning, {user?.name?.split(' ')[0] || 'Editor'}.</h1>
+            <h1 className="text-5xl font-extrabold tracking-tight">{getGreeting(user?.name || '')}</h1>
           </div>
           <div className="flex items-center gap-4">
             <div className="flex -space-x-3 items-center mr-6">
-              {[1, 2, 3].map(i => (
-                <img
-                  key={i}
-                  alt="Team"
-                  className="h-9 w-9 rounded-full border-2 border-white object-cover"
-                  src={`https://picsum.photos/seed/team${i}/100/100`}
-                  referrerPolicy="no-referrer"
-                />
-              ))}
+              {teamMembers.map((tm, i) => {
+                const initials = tm.name.split(' ').map(n => n[0]).join('');
+                return (
+                  <div key={i} className={`h-9 w-9 rounded-full border-2 border-white flex items-center justify-center text-[10px] font-bold ${tm.color} object-cover`}>
+                    {initials}
+                  </div>
+                );
+              })}
               <div className="h-9 w-9 rounded-full border-2 border-white bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">+4</div>
             </div>
             <Button className="shadow-xl" onClick={openCreateModal}>
@@ -168,11 +155,13 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
               <div className="flex justify-between items-start mb-8">
                 <div>
                   <span className="text-on-surface-variant/50 font-bold text-[10px] uppercase tracking-widest">Total Followers</span>
-                  <h2 className="text-5xl font-extrabold mt-3 tracking-tighter">{dashboardStats?.followers?.total?.toLocaleString()}</h2>
+                  <h2 className="text-5xl font-extrabold mt-3 tracking-tighter">
+                    {isLoading ? <div className="h-8 w-32 bg-surface-container animate-pulse rounded-lg" /> : dashboardStats?.followers?.total?.toLocaleString()}
+                  </h2>
                 </div>
                 <div className="flex items-center gap-1 bg-teal-50 text-teal-600 px-3 py-1 rounded-full text-[10px] font-bold">
                   <ArrowUp className="w-3 h-3" />
-                  {dashboardStats?.followers?.growthPercent}%
+                  {isLoading ? '-' : `${dashboardStats?.followers?.growthPercent}%`}
                 </div>
               </div>
               <div className="w-full h-32 mt-4 relative overflow-hidden">
@@ -215,11 +204,13 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                   <div className="flex items-center gap-3 mb-3">
                     <span className="bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-widest">Smart Insight</span>
                     <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest">AI Generated</span>
-                    <span className="text-on-surface-variant/50 text-[10px] font-bold uppercase tracking-widest">{dashboardStats?.smartInsight?.confidence}% Confidence</span>
+                    <span className="text-on-surface-variant/50 text-[10px] font-bold uppercase tracking-widest">
+                      {isLoading ? '-' : dashboardStats?.smartInsight?.confidence}% Confidence
+                    </span>
                   </div>
-                  <p className="text-2xl font-bold leading-tight">
-                    {dashboardStats?.smartInsight?.text}
-                  </p>
+                  <div className="text-2xl font-bold leading-tight">
+                    {isLoading ? <div className="h-4 w-48 bg-surface-container animate-pulse rounded-lg" /> : dashboardStats?.smartInsight?.text}
+                  </div>
                   <div className="mt-8 w-full h-2 bg-primary/10 rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
@@ -245,23 +236,32 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                 <p className="text-on-surface-variant/50 text-[10px] font-bold uppercase tracking-widest">Top performing territories</p>
               </div>
               <div className="space-y-8">
-                {dashboardStats?.audienceBreakdown?.map((item: any, idx: number) => (
-                  <div key={item.country}>
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="text-sm font-bold">{item.country}</span>
-                      <span className="text-sm font-bold">{item.percent}%</span>
+                {isLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="flex justify-between items-center mb-3">
+                      <div className="h-4 w-24 bg-surface-container animate-pulse rounded-lg" />
+                      <div className="h-4 w-10 bg-surface-container animate-pulse rounded-lg" />
                     </div>
-                    <div className="w-full h-3 bg-surface-container rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        whileInView={{ width: `${item.percent}%` }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 1, ease: "easeOut" }}
-                        className={cn("h-full rounded-full", idx === 0 ? 'bg-primary' : idx === 1 ? 'bg-secondary' : 'bg-tertiary')}
-                      />
+                  ))
+                ) : (
+                  dashboardStats?.audienceBreakdown?.map((item: any, idx: number) => (
+                    <div key={item.country}>
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-sm font-bold">{item.country}</span>
+                        <span className="text-sm font-bold">{item.percent}%</span>
+                      </div>
+                      <div className="w-full h-3 bg-surface-container rounded-full overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          whileInView={{ width: `${item.percent}%` }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 1, ease: "easeOut" }}
+                          className={cn("h-full rounded-full", idx === 0 ? 'bg-primary' : idx === 1 ? 'bg-secondary' : 'bg-tertiary')}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
                 <Button variant="ghost" className="w-full mt-4" onClick={() => setView('analytics')}>View Full Report</Button>
               </div>
             </Card>
@@ -282,21 +282,31 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                 </div>
               </div>
               <div className="grid grid-cols-7 gap-3">
-                {dashboardStats?.activityDensity?.map((val: number, i: number) => (
-                  <motion.div
-                    key={i}
-                    whileHover={{ scale: 1.2 }}
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: i * 0.02 }}
-                    className={cn(
-                      "aspect-square rounded-full cursor-pointer",
-                      val >= 0.8 ? "bg-primary" :
-                        val >= 0.5 ? "bg-primary/60" :
-                          val >= 0.2 ? "bg-primary/30" : "bg-primary/10"
-                    )}
-                  />
-                ))}
+                {isLoading ? (
+                  Array.from({ length: 28 }).map((_, i) => (
+                    <div key={i} className="aspect-square rounded-full bg-surface-container animate-pulse" />
+                  ))
+                ) : (
+                  Array.from({ length: 28 }).map((_, i) => {
+                    const density = dashboardStats?.activityDensity?.[i] || 0;
+                    const colorClass = density >= 0.8 ? 'bg-primary' :
+                                       density >= 0.5 ? 'bg-primary/60' :
+                                       density >= 0.2 ? 'bg-primary/30' : 'bg-primary/10';
+                    return (
+                      <motion.div
+                        key={i}
+                        whileHover={{ scale: 1.2 }}
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ delay: i * 0.02 }}
+                        className={cn(
+                          "aspect-square rounded-full cursor-pointer",
+                          colorClass
+                        )}
+                      />
+                    );
+                  })
+                )}
               </div>
             </Card>
           </motion.div>
@@ -311,8 +321,18 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                     <span className="w-2 h-2 rounded-full bg-tertiary animate-ping" />
                     <span className="text-[10px] font-bold uppercase tracking-widest text-tertiary">Anomaly Detected</span>
                   </div>
-                  <h3 className="text-xl font-bold leading-snug">{dashboardStats?.anomaly?.title}</h3>
-                  <p className="text-on-surface-variant/70 text-xs mt-3">{dashboardStats?.anomaly?.description}</p>
+                  {isLoading ? (
+                    <div className="space-y-3">
+                       <div className="h-6 w-full bg-white/20 animate-pulse rounded-lg" />
+                       <div className="h-4 w-3/4 bg-white/20 animate-pulse rounded-lg mt-3" />
+                       <div className="h-4 w-1/2 bg-white/20 animate-pulse rounded-lg" />
+                    </div>
+                  ) : (
+                    <>
+                      <h3 className="text-xl font-bold leading-snug">{dashboardStats?.anomaly?.title}</h3>
+                      <p className="text-on-surface-variant/70 text-xs mt-3">{dashboardStats?.anomaly?.description}</p>
+                    </>
+                  )}
                 </div>
                 <div className="mt-10 flex items-end gap-2 h-24">
                   {[20, 35, 25, 95, 30, 15, 20].map((h, i) => (
@@ -349,20 +369,24 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
             viewport={{ once: true }}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"
           >
-            {recentPosts.length === 0 ? (
-              <div className="col-span-full border-2 border-dashed border-outline-variant/30 rounded-3xl p-12 flex flex-col items-center justify-center gap-4 text-on-surface-variant/50">
-                <p className="text-lg font-bold">No posts yet</p>
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-64 w-full bg-surface-container animate-pulse rounded-2xl" />
+              ))
+            ) : recentPosts.length === 0 ? (
+              <div className="col-span-full flex flex-col items-center justify-center py-20 text-on-surface-variant/50 border-2 border-dashed border-outline-variant/20 rounded-2xl">
+                <p className="font-bold text-lg mb-4">No posts yet</p>
                 <Button onClick={openCreateModal}>Create your first post</Button>
               </div>
             ) : (
               recentPosts.map(post => (
-                <motion.div key={post.id} variants={itemVariants}>
+                <motion.div key={post.id || post._id} variants={itemVariants}>
                   <Card className="overflow-hidden group cursor-pointer hover:-translate-y-2 transition-all duration-300">
                     <div className="h-52 relative overflow-hidden">
                       <img
                         alt={post.title}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                        src={post.image || `https://picsum.photos/seed/${post.id}/800/600`}
+                        src={post.imageUrl || post.image || `https://picsum.photos/seed/${post.id || post._id}/800/600`}
                         referrerPolicy="no-referrer"
                       />
                       <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
@@ -372,13 +396,15 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                     </div>
                     <div className="p-6">
                       <div className="flex items-center justify-between mb-5">
-                        <span className="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest">{post.date}</span>
+                        <span className="text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest">
+                          {new Date(post.createdAt || post.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-1.5 text-[10px] font-bold text-on-surface-variant">
-                            <Heart className="w-3.5 h-3.5" /> {post.likes}
+                            <Heart className="w-3.5 h-3.5" /> {(post.likes || 0).toLocaleString()}
                           </div>
                           <div className="flex items-center gap-1.5 text-[10px] font-bold text-on-surface-variant">
-                            <MessageCircle className="w-3.5 h-3.5" /> {post.comments}
+                            <MessageCircle className="w-3.5 h-3.5" /> {(post.comments || 0).toLocaleString()}
                           </div>
                         </div>
                       </div>
@@ -400,7 +426,7 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
       </button>
 
       <AnimatePresence>
-        {toast && <toast message={toast} onClose={() => setToast(null)} />}
+        {toast && <Toast message={toast} onClose={() => setToast(null)} />}
       </AnimatePresence>
     </div>
   );
