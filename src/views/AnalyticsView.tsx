@@ -12,6 +12,7 @@ const AnalyticsView = ({ setView, user, onLogout }: { setView: (v: View) => void
   const [activeTab, setActiveTab] = useState<'Engagement' | 'Reach' | 'Conversions'>('Engagement');
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [growthData, setGrowthData] = useState<any[]>([]);
+  const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,10 +25,17 @@ const AnalyticsView = ({ setView, user, onLogout }: { setView: (v: View) => void
         onLogout();
         return;
       }
-      const res = await fetch(`${BASE_URL}/analytics/full`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.status === 401) {
+      
+      const [res, intRes] = await Promise.all([
+        fetch(`${BASE_URL}/analytics/full`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch(`${BASE_URL}/integrations`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      ]);
+
+      if (res.status === 401 || intRes.status === 401) {
         removeToken();
         setView('login');
         return;
@@ -35,7 +43,16 @@ const AnalyticsView = ({ setView, user, onLogout }: { setView: (v: View) => void
       if (!res.ok) throw new Error('Failed to load analytics data.');
 
       const data = await res.json();
+      const intData = await intRes.json();
+
       setAnalyticsData(data);
+      if (intData && intData.integrations) {
+        setConnectedPlatforms(
+          intData.integrations
+            .filter((i: any) => i.connected)
+            .map((i: any) => i.platform.toLowerCase())
+        );
+      }
       
       if (data.growthChart) {
         const gd = [];
@@ -120,11 +137,13 @@ const AnalyticsView = ({ setView, user, onLogout }: { setView: (v: View) => void
     { label: 'Post Frequency', value: analyticsData.kpis.postFrequency, change: analyticsData.kpis.frequencyChange },
   ] : [];
 
-  const platformColors = ['bg-primary', 'bg-secondary', 'bg-tertiary'];
-  const networkDistribution = analyticsData?.networkDistribution?.map((item: any, idx: number) => ({
-    ...item,
-    color: platformColors[idx] || 'bg-primary'
-  })) || [];
+  const platformColors = ['bg-primary', 'bg-secondary', 'bg-tertiary', 'bg-teal-500', 'bg-blue-500'];
+  const networkDistribution = analyticsData?.networkDistribution
+    ?.filter((item: any) => connectedPlatforms.includes(item.platform.toLowerCase()))
+    ?.map((item: any, idx: number) => ({
+      ...item,
+      color: platformColors[idx] || 'bg-primary'
+    })) || [];
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -274,39 +293,46 @@ const AnalyticsView = ({ setView, user, onLogout }: { setView: (v: View) => void
                         </div>
                       ))
                     ) : (
-                      networkDistribution.map((item: any, idx: number) => {
-                        return (
-                        <div key={item.platform}>
-                          <div className="flex justify-between items-center mb-4">
-                            <span className="text-sm font-bold uppercase tracking-widest text-on-surface-variant/50">{item.platform}</span>
-                            <span className="text-sm font-bold">{item.percent}% Total</span>
-                          </div>
-                          <div className="w-full h-6 bg-surface-container rounded-full overflow-hidden flex">
-                            <motion.div 
-                              initial={{ width: 0 }}
-                              whileInView={{ width: `${item.percent}%` }}
-                              viewport={{ once: true }}
-                              transition={{ duration: 1, delay: 0.8 + (idx * 0.2) }}
-                              className={cn("h-full", item.color)} 
-                            />
-                            <motion.div 
-                              initial={{ width: 0 }}
-                              whileInView={{ width: `${item.percent * 0.5}%` }}
-                              viewport={{ once: true }}
-                              transition={{ duration: 1, delay: 1 + (idx * 0.2) }}
-                              className={cn("h-full opacity-60", item.color)} 
-                            />
-                            <motion.div 
-                              initial={{ width: 0 }}
-                              whileInView={{ width: `${item.percent * 0.3}%` }}
-                              viewport={{ once: true }}
-                              transition={{ duration: 1, delay: 1.2 + (idx * 0.2) }}
-                              className={cn("h-full opacity-30", item.color)} 
-                            />
-                          </div>
+                      networkDistribution.length === 0 ? (
+                        <div className="text-center py-8 text-on-surface-variant/50">
+                          <p className="font-bold text-sm">No connected platforms</p>
+                          <p className="text-xs">Connect platforms in Integrations to view distribution.</p>
                         </div>
-                        );
-                      })
+                      ) : (
+                        networkDistribution.map((item: any, idx: number) => {
+                          return (
+                          <div key={item.platform}>
+                            <div className="flex justify-between items-center mb-4">
+                              <span className="text-sm font-bold uppercase tracking-widest text-on-surface-variant/50">{item.platform}</span>
+                              <span className="text-sm font-bold">{item.percent}% Total</span>
+                            </div>
+                            <div className="w-full h-6 bg-surface-container rounded-full overflow-hidden flex">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                whileInView={{ width: `${item.percent}%` }}
+                                viewport={{ once: true }}
+                                transition={{ duration: 1, delay: 0.8 + (idx * 0.2) }}
+                                className={cn("h-full", item.color)} 
+                              />
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                whileInView={{ width: `${item.percent * 0.5}%` }}
+                                viewport={{ once: true }}
+                                transition={{ duration: 1, delay: 1 + (idx * 0.2) }}
+                                className={cn("h-full opacity-60", item.color)} 
+                              />
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                whileInView={{ width: `${item.percent * 0.3}%` }}
+                                viewport={{ once: true }}
+                                transition={{ duration: 1, delay: 1.2 + (idx * 0.2) }}
+                                className={cn("h-full opacity-30", item.color)} 
+                              />
+                            </div>
+                          </div>
+                          );
+                        })
+                      )
                     )}
                   </div>
                 </Card>

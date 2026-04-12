@@ -5,7 +5,7 @@ import {
   LayoutDashboard, BarChart3, Calendar, LogOut, TrendingUp, MoreHorizontal,
   Mail, Eye, EyeOff, Check, X, Upload, Trash2, Instagram, Twitter, Linkedin,
   Clock, ChevronDown, Phone, Video, FileText, MousePointerClick, PlusCircle,
-  MessageSquare, Plug, Loader2, Send, Smartphone, Laptop
+  MessageSquare, Plug, Loader2, Send, Smartphone, Laptop, Music2, Youtube
 } from 'lucide-react';
 import { Card, Button, Input } from '../components/ui-base';
 import { cn } from '../lib/utils';
@@ -27,6 +27,27 @@ const CreatePostModal = ({ isOpen, onClose, user }: { isOpen: boolean, onClose: 
   
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [connectedPlatforms, setConnectedPlatforms] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const fetchIntegrations = async () => {
+        try {
+          const res = await fetch(`${BASE_URL}/integrations`, {
+            headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          const data = await res.json();
+          const connected = data.integrations.filter((i: any) => i.connected);
+          setConnectedPlatforms(connected);
+          setSelectedPlatforms([connected.length > 0 ? connected[0].platform : '']);
+        } catch (err) {
+          console.error(err);
+        }
+      };
+      fetchIntegrations();
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -161,6 +182,15 @@ const CreatePostModal = ({ isOpen, onClose, user }: { isOpen: boolean, onClose: 
     })
   };
 
+  const getPlatformIcon = (platform: string) => {
+    if (platform === 'instagram') return <Instagram className="w-3.5 h-3.5" />;
+    if (platform === 'twitter') return <Twitter className="w-3.5 h-3.5" />;
+    if (platform === 'linkedin') return <Linkedin className="w-3.5 h-3.5" />;
+    if (platform === 'tiktok') return <Music2 className="w-3.5 h-3.5" />;
+    if (platform === 'youtube') return <Youtube className="w-3.5 h-3.5" />;
+    return null;
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -256,32 +286,26 @@ const CreatePostModal = ({ isOpen, onClose, user }: { isOpen: boolean, onClose: 
             <motion.div custom={2} variants={formVariants} initial="hidden" animate="visible" className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <section className="space-y-4">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 ml-1">Platforms</label>
-                <div className="flex flex-wrap gap-3">
-                  <button 
-                    onClick={() => handlePlatformToggle('instagram')}
-                    className={cn(
-                      "px-4 py-2 rounded-full font-bold text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all",
-                      selectedPlatforms.includes('instagram') ? "bg-primary text-white shadow-lg shadow-primary/20" : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
-                    )}>
-                    <Instagram className="w-3.5 h-3.5" /> Instagram
-                  </button>
-                  <button 
-                    onClick={() => handlePlatformToggle('twitter')}
-                    className={cn(
-                      "px-4 py-2 rounded-full font-bold text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all",
-                      selectedPlatforms.includes('twitter') ? "bg-primary text-white shadow-lg shadow-primary/20" : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
-                    )}>
-                    <Twitter className="w-3.5 h-3.5" /> Twitter
-                  </button>
-                  <button 
-                    onClick={() => handlePlatformToggle('linkedin')}
-                    className={cn(
-                      "px-4 py-2 rounded-full font-bold text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all",
-                      selectedPlatforms.includes('linkedin') ? "bg-primary text-white shadow-lg shadow-primary/20" : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
-                    )}>
-                    <Linkedin className="w-3.5 h-3.5" /> LinkedIn
-                  </button>
-                </div>
+                
+                {connectedPlatforms.length === 0 ? (
+                  <div className="p-4 bg-yellow-50 text-yellow-800 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-yellow-200">
+                    You have no connected accounts. Please go to Integrations to connect a platform before posting.
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-3">
+                    {connectedPlatforms.map((plat) => (
+                      <button 
+                        key={plat.platform}
+                        onClick={() => handlePlatformToggle(plat.platform)}
+                        className={cn(
+                          "px-4 py-2 rounded-full font-bold text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all",
+                          selectedPlatforms.includes(plat.platform) ? "bg-primary text-white shadow-lg shadow-primary/20" : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
+                        )}>
+                        {getPlatformIcon(plat.platform)} {plat.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </section>
               <section className="space-y-4">
                 <label className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 ml-1">Content Type</label>
@@ -427,13 +451,13 @@ const CreatePostModal = ({ isOpen, onClose, user }: { isOpen: boolean, onClose: 
             <div className="flex items-center gap-4">
               <button 
                 onClick={() => handleSubmit('draft')}
-                disabled={isSubmitting}
+                disabled={isSubmitting || connectedPlatforms.length === 0}
                 className="px-6 py-2.5 rounded-full font-bold text-[10px] uppercase tracking-widest text-on-surface hover:bg-surface-container transition-colors disabled:opacity-50"
               >
                 Save Draft
               </button>
               <Button 
-                disabled={isSubmitting}
+                disabled={isSubmitting || connectedPlatforms.length === 0}
                 onClick={() => handleSubmit(isScheduled ? 'scheduled' : 'published')}
                 className="px-8 py-2.5 rounded-full shadow-xl shadow-primary/20 flex items-center gap-2 disabled:opacity-50"
               >

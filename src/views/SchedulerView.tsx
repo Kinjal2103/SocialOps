@@ -11,6 +11,13 @@ import { BASE_URL, getToken, removeToken } from '../constants';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
 
+const getImageUrl = (url: string) => {
+  if (!url) return 'placeholder-image-url-here';
+  if (url.startsWith('http')) return url;
+  const serverUrl = BASE_URL.replace('/api', ''); 
+  return `${serverUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 const SchedulerView = ({ setView, user, onLogout, openCreateModal }: { setView: (v: View) => void, user: User | null, onLogout: () => void, openCreateModal: () => void }) => {
   const [scheduledPosts, setScheduledPosts] = useState<any[]>([]);
   const [drafts, setDrafts] = useState<any[]>([]);
@@ -233,7 +240,7 @@ const SchedulerView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                             
                             {post.imageUrl && (
                               <div className="rounded-2xl overflow-hidden mb-6 h-48 bg-surface-container">
-                                <img src={post.imageUrl.startsWith('http') ? post.imageUrl : `http://localhost:5000${post.imageUrl}`} className="w-full h-full object-cover" alt="Post media" />
+                                <img src={getImageUrl(post.imageUrl)} className="w-full h-full object-cover" alt="Post media" />
                               </div>
                             )}
 

@@ -15,6 +15,13 @@ import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
 import { Toast } from '../components/Toast';
 
+const getImageUrl = (url: string, seed: string) => {
+  if (!url) return `https://picsum.photos/seed/${seed}/800/600`;
+  if (url.startsWith('http')) return url;
+  const serverUrl = BASE_URL.replace('/api', ''); 
+  return `${serverUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 const getGreeting = (name: string) => {
   const hour = new Date().getHours();
   const firstName = name?.split(' ')[0] || 'there';
@@ -386,7 +393,7 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                       <img
                         alt={post.title}
                         className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                        src={post.imageUrl || post.image || `https://picsum.photos/seed/${post.id || post._id}/800/600`}
+                        src={getImageUrl(post.imageUrl || post.image, post.id || post._id)}
                         referrerPolicy="no-referrer"
                       />
                       <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
