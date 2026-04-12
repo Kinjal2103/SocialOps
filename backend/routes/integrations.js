@@ -1,11 +1,12 @@
 const express = require('express');
-const { getConnectedAccounts, connectAccount, disconnectAccount } = require('../controllers/integrationsController');
+const { getIntegrations, connectIntegration, disconnectIntegration, getIntegrationStats } = require('../controllers/integrationsController');
 const { protect } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-router.get('/', protect, getConnectedAccounts);
-router.post('/:platform/connect', protect, connectAccount);
-router.delete('/:platform/disconnect', protect, disconnectAccount);
+router.get('/', protect, getIntegrations);
+router.post('/connect', protect, connectIntegration);
+router.post('/disconnect', protect, disconnectIntegration);
+router.get('/:platform/stats', protect, getIntegrationStats);
 
 module.exports = router;

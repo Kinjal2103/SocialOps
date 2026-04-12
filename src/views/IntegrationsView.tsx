@@ -1,159 +1,315 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { 
-  Search, Bell, Plus, ArrowUp, Sparkles, Heart, MessageCircle, ArrowRight,
-  LayoutDashboard, BarChart3, Calendar, LogOut, TrendingUp, MoreHorizontal,
-  Mail, Eye, EyeOff, Check, X, Upload, Trash2, Instagram, Twitter, Linkedin,
-  Clock, ChevronDown, Phone, Video, FileText, MousePointerClick, PlusCircle,
-  MessageSquare, Plug, Loader2, Send, Smartphone, Laptop
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { Card, Button, Input } from '../components/ui-base';
 import { cn } from '../lib/utils';
 import type { View, User } from '../types';
-import { BASE_URL, getToken, saveToken, removeToken } from '../constants';
+import { BASE_URL, getToken, removeToken } from '../constants';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
+import { Instagram, Twitter, Linkedin, Music2, Youtube, X } from 'lucide-react';
 
 const IntegrationsView = ({ setView, user, onLogout }: { setView: (v: View) => void, user: User | null, onLogout: () => void }) => {
-  const [connectedApps, setConnectedApps] = useState<any[]>([]);
+  const [integrations, setIntegrations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeProcess, setActiveProcess] = useState<string | null>(null);
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<any>(null);
+  const [platformStats, setPlatformStats] = useState<any>(null);
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [connectUsername, setConnectUsername] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchIntegrations = async () => {
       try {
-        const token = getToken();
-        if (!token) return onLogout();
-        const res = await fetch(`${BASE_URL}/integrations`, { headers: { Authorization: `Bearer ${token}` } });
-        if (res.ok) {
-          const data = await res.json();
-          setConnectedApps(data);
-        } else if (res.status === 401) {
-          onLogout();
-        }
+        setIsLoading(true);
+        const res = await fetch(`${BASE_URL}/integrations`, {
+          headers: { Authorization: `Bearer ${getToken()}` }
+        });
+        if (res.status === 401) { removeToken(); setView('login'); return; }
+        const data = await res.json();
+        setIntegrations(data.integrations);
       } catch (err) {
-        console.error(err);
+        setError('Failed to load integrations');
       } finally {
         setIsLoading(false);
       }
     };
     fetchIntegrations();
-  }, [onLogout]);
+  }, [setView]);
 
-  const handleConnect = async (platform: string) => {
-    setActiveProcess(platform);
+  const handleConnectClick = (integration: any) => {
+    setSelectedPlatform(integration);
+    setConnectUsername('');
+    setShowConnectModal(true);
+  };
+
+  const handleConnect = async () => {
+    if (!connectUsername.trim()) return;
+    setConnectingPlatform(selectedPlatform.platform);
     try {
-      const token = getToken();
-      const res = await fetch(`${BASE_URL}/integrations/${platform}/connect`, {
+      const res = await fetch(`${BASE_URL}/integrations/connect`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          platform: selectedPlatform.platform,
+          username: connectUsername
+        })
       });
-      if (res.ok) {
-        const data = await res.json();
-        setConnectedApps(prev => [...prev.filter(a => a.platform !== platform), data.account]);
-        window.dispatchEvent(new CustomEvent('app-toast', { detail: `Successfully connected ${platform}!` }));
+      const data = await res.json();
+      if (data.success) {
+        setIntegrations(prev => prev.map(i =>
+          i.platform === selectedPlatform.platform
+            ? { ...i, connected: true, username: connectUsername }
+            : i
+        ));
+        setShowConnectModal(false);
+        window.dispatchEvent(new CustomEvent('app-toast', { detail: `✅ ${selectedPlatform.label} connected successfully!` }));
       }
     } catch (err) {
-      console.error(err);
+      window.dispatchEvent(new CustomEvent('app-toast', { detail: '❌ Failed to connect. Please try again.' }));
     } finally {
-      setActiveProcess(null);
+      setConnectingPlatform(null);
     }
   };
 
   const handleDisconnect = async (platform: string) => {
-    setActiveProcess(platform);
+    setConnectingPlatform(platform);
     try {
-      const token = getToken();
-      const res = await fetch(`${BASE_URL}/integrations/${platform}/disconnect`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
+      const res = await fetch(`${BASE_URL}/integrations/disconnect`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${getToken()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ platform })
       });
-      if (res.ok) {
-        setConnectedApps(prev => prev.filter(a => a.platform !== platform));
-        window.dispatchEvent(new CustomEvent('app-toast', { detail: `Disconnected ${platform}` }));
+      const data = await res.json();
+      if (data.success) {
+        setIntegrations(prev => prev.map(i =>
+          i.platform === platform
+            ? { ...i, connected: false, username: '', followers: 0 }
+            : i
+        ));
+        if (selectedPlatform?.platform === platform) {
+           setPlatformStats(null);
+           setSelectedPlatform(null);
+        }
+        window.dispatchEvent(new CustomEvent('app-toast', { detail: `🔌 ${platform} disconnected` }));
       }
     } catch (err) {
-      console.error(err);
+      window.dispatchEvent(new CustomEvent('app-toast', { detail: '❌ Failed to disconnect. Please try again.' }));
     } finally {
-      setActiveProcess(null);
+      setConnectingPlatform(null);
     }
   };
 
-  const platforms = [
-    { id: 'instagram', name: 'Instagram', icon: <Instagram className="w-8 h-8" />, color: 'text-pink-600 bg-pink-100' },
-    { id: 'twitter', name: 'Twitter/X', icon: <Twitter className="w-8 h-8" />, color: 'text-blue-500 bg-blue-100' },
-    { id: 'linkedin', name: 'LinkedIn', icon: <Linkedin className="w-8 h-8" />, color: 'text-blue-700 bg-blue-100' },
-    { id: 'tiktok', name: 'TikTok', icon: <Video className="w-8 h-8" />, color: 'text-black bg-gray-200' },
-  ];
+  const handleViewStats = async (integration: any) => {
+    setSelectedPlatform(integration);
+    const res = await fetch(`${BASE_URL}/integrations/${integration.platform}/stats`, {
+      headers: { Authorization: `Bearer ${getToken()}` }
+    });
+    const data = await res.json();
+    setPlatformStats(data);
+  };
+
+  const renderIcon = (platform: string) => {
+    if (platform === 'instagram') return <Instagram className="w-6 h-6" />;
+    if (platform === 'twitter') return <Twitter className="w-6 h-6" />;
+    if (platform === 'linkedin') return <Linkedin className="w-6 h-6" />;
+    if (platform === 'tiktok') return <Music2 className="w-6 h-6" />;
+    if (platform === 'youtube') return <Youtube className="w-6 h-6" />;
+    return null;
+  };
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 100 } }
+  };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background relative">
       <Navbar currentView="integrations" setView={setView} user={user} onLogout={onLogout} />
-      <main className="flex-1 max-w-7xl w-full mx-auto p-8 pt-32">
-        <div className="mb-12">
-          <h1 className="text-4xl font-extrabold tracking-tight mb-4">Connect your social accounts</h1>
-          <p className="text-on-surface-variant font-medium max-w-xl">Link your active profiles to SocialOps to start orchestrating cross-platform campaigns seamlessly from one centralized dashboard.</p>
-        </div>
+      
+      <main className="pt-32 pb-20 px-8 max-w-7xl mx-auto">
+        <motion.header 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-16"
+        >
+          <h1 className="text-5xl font-extrabold tracking-tight mb-4">Connected Apps</h1>
+          <p className="text-on-surface-variant font-medium">Manage your social platform connections</p>
+        </motion.header>
 
-        {isLoading ? (
-           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-             {[1,2,3,4].map(i => <div key={i} className="animate-pulse h-48 bg-surface-container rounded-2xl" />)}
-           </div>
+        {error ? (
+          <div className="text-center py-20 text-on-surface-variant/50">
+            <p className="font-bold text-lg mb-2">Could not load integrations</p>
+            <p className="text-sm">{error}</p>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {platforms.map(p => {
-              const connectedAccount = connectedApps.find(a => a.platform === p.id);
-              const isConnecting = activeProcess === p.id;
-              
-              return (
-                <Card key={p.id} className="p-8 flex flex-col justify-between h-full">
-                  <div>
-                    <div className="flex items-start justify-between mb-6">
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${p.color}`}>
-                        {p.icon}
+          <motion.div 
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+          >
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="p-8 rounded-2xl bg-surface-container animate-pulse h-64" />
+              ))
+            ) : (
+              integrations.map((integration: any) => (
+                <motion.div key={integration.platform} variants={itemVariants}>
+                  <Card className="p-8 hover:shadow-xl transition-shadow duration-300 h-full flex flex-col relative group">
+                    {integration.platform === 'youtube' && (
+                      <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] z-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl pointer-events-none text-sm font-bold text-on-surface-variant text-center px-4">
+                        YouTube integration coming soon
                       </div>
-                      {connectedAccount && (
-                        <div className="flex items-center gap-1.5 bg-green-50 text-green-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border border-green-200">
-                          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                          Connected
+                    )}
+                    <div className="flex items-center gap-4 mb-6">
+                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center"
+                        style={{ backgroundColor: `${integration.color}15`, color: integration.color }}>
+                        {renderIcon(integration.platform)}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-lg">{integration.label}</h3>
+                        {integration.connected && (
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50">
+                            {integration.username}
+                          </p>
+                        )}
+                      </div>
+                      <div className={cn(
+                        "ml-auto w-2.5 h-2.5 rounded-full",
+                        integration.connected ? "bg-teal-500" : "bg-surface-container-high"
+                      )} />
+                    </div>
+
+                    <div className="flex-grow">
+                      {integration.connected && (
+                        <div className="mb-6 p-4 bg-surface-container/50 rounded-xl">
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-1">Followers</p>
+                          <p className="text-2xl font-extrabold">{integration.followers.toLocaleString()}</p>
                         </div>
                       )}
                     </div>
-                    <h3 className="text-xl font-bold mb-1">{p.name}</h3>
-                    {connectedAccount ? (
-                      <p className="text-sm font-bold text-on-surface-variant/70">{connectedAccount.username}</p>
-                    ) : (
-                      <p className="text-sm font-bold text-on-surface-variant/40">Not connected</p>
-                    )}
-                  </div>
-                  
-                  <div className="mt-8 pt-6 border-t-2 border-surface-container/50">
-                    {connectedAccount ? (
-                      <Button 
-                        variant="ghost" 
-                        className="w-full text-tertiary hover:bg-tertiary/10 border border-tertiary/20"
-                        onClick={() => handleDisconnect(p.id)}
-                        disabled={isConnecting}
-                      >
-                        {isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Disconnect'}
-                      </Button>
-                    ) : (
-                      <Button 
-                        className="w-full shadow-lg"
-                        onClick={() => handleConnect(p.id)}
-                        disabled={isConnecting}
-                      >
-                        {isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Connect'}
-                      </Button>
-                    )}
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
+
+                    <div className="flex gap-3 mt-auto">
+                      {integration.connected ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            className="flex-1 border border-outline-variant/20"
+                            onClick={() => handleViewStats(integration)}
+                          >
+                            View Stats
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            className="flex-1"
+                            onClick={() => handleDisconnect(integration.platform)}
+                            disabled={connectingPlatform === integration.platform || integration.platform === 'youtube'}
+                          >
+                            {connectingPlatform === integration.platform ? 'Disconnecting...' : 'Disconnect'}
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          className="w-full"
+                          onClick={() => handleConnectClick(integration)}
+                          disabled={connectingPlatform === integration.platform || integration.platform === 'youtube'}
+                        >
+                          {connectingPlatform === integration.platform ? 'Connecting...' : 'Connect'}
+                        </Button>
+                      )}
+                    </div>
+                  </Card>
+                </motion.div>
+              ))
+            )}
+          </motion.div>
+        )}
+
+        {platformStats && selectedPlatform && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-12"
+          >
+            <Card className="p-10">
+              <div className="flex justify-between items-center mb-8">
+                <h3 className="text-2xl font-bold">{selectedPlatform.label} Stats</h3>
+                <button 
+                  onClick={() => { setPlatformStats(null); setSelectedPlatform(null); }}
+                  className="p-2 hover:bg-surface-container rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div className="p-6 bg-surface-container rounded-2xl">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-2">Total Posts</p>
+                  <p className="text-3xl font-extrabold">{platformStats.posts}</p>
+                </div>
+                <div className="p-6 bg-surface-container rounded-2xl">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-2">Avg Likes</p>
+                  <p className="text-3xl font-extrabold">{platformStats.avgLikes?.toLocaleString()}</p>
+                </div>
+                <div className="p-6 bg-surface-container rounded-2xl">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-2">Avg Comments</p>
+                  <p className="text-3xl font-extrabold">{platformStats.avgComments}</p>
+                </div>
+                <div className="p-6 bg-surface-container rounded-2xl">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-2">Best Time</p>
+                  <p className="text-3xl font-extrabold">{platformStats.bestTime}</p>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
         )}
       </main>
+      
       <Footer />
+
+      {showConnectModal && selectedPlatform && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+          >
+            <Card className="p-10 w-full max-w-md mx-4">
+              <h3 className="text-xl font-bold mb-2">Connect {selectedPlatform.label}</h3>
+              <p className="text-on-surface-variant text-sm mb-8">
+                Enter your {selectedPlatform.label} username to connect your account.
+              </p>
+              <div className="space-y-4">
+                <Input
+                  placeholder={`Your ${selectedPlatform.label} username`}
+                  value={connectUsername}
+                  onChange={(e) => setConnectUsername(e.target.value)}
+                />
+                <div className="flex gap-4 pt-4">
+                  <Button variant="ghost" className="flex-1"
+                    onClick={() => setShowConnectModal(false)}>
+                    Cancel
+                  </Button>
+                  <Button className="flex-1" onClick={handleConnect}
+                    disabled={!connectUsername.trim() || connectingPlatform !== null}>
+                    Connect
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
