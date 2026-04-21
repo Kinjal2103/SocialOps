@@ -1,12 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Bell, Sparkles, LayoutDashboard, BarChart3, Calendar, Plug } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { View, User } from '../types';
+import { useSocket } from '../hooks/useSocket';
 
 const Navbar = ({ currentView, setView, user, onLogout }: { currentView: View, setView: (v: View) => void, user: User | null, onLogout: () => void }) => {
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const socket = useSocket(user?.id);
+
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleNewNotif = (payload: any) => {
+      setNotifications(prev => [payload, ...prev]);
+      window.dispatchEvent(new CustomEvent('app-toast', { detail: payload.message }));
+    };
+
+    socket.on('notification:new', handleNewNotif);
+    return () => {
+      socket.off('notification:new', handleNewNotif);
+    }
+  }, [socket]);
+
+  useEffect(() => {
+    const handleLocalNotif = (e: any) => {
+      const payload = {
+        id: Math.random().toString(36).substring(7),
+        title: 'System Alert',
+        message: e.detail
+      };
+      setNotifications(prev => [payload, ...prev]);
+    };
+    window.addEventListener('local-notification', handleLocalNotif);
+    return () => window.removeEventListener('local-notification', handleLocalNotif);
+  }, []);
+
+  const unreadCount = notifications.length;
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -92,10 +124,13 @@ const Navbar = ({ currentView, setView, user, onLogout }: { currentView: View, s
           <div className="relative">
             <button 
               className="p-2 text-on-surface-variant hover:bg-surface-container rounded-xl transition-all relative"
-              onClick={() => setNotifOpen(!notifOpen)}
+              onClick={() => {
+                setNotifOpen(!notifOpen);
+                if (notifOpen) setNotifications([]); // Clear on close
+              }}
             >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-background"></span>
+              {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-2 border-background"></span>}
             </button>
             
             {/* Notifications Dropdown */}
@@ -105,23 +140,21 @@ const Navbar = ({ currentView, setView, user, onLogout }: { currentView: View, s
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 top-full mt-2 w-80 bg-surface-container-lowest border border-outline-variant/10 rounded-2xl shadow-2xl p-4 z-50"
+                  className="absolute right-0 top-full mt-2 w-80 bg-surface-container-lowest border border-outline-variant/10 rounded-2xl shadow-2xl p-4 z-50 max-h-96 overflow-y-auto"
                   style={{ transformOrigin: 'top right' }}
                 >
                   <h4 className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/50 mb-3 px-2">Notifications</h4>
                   <div className="space-y-1">
-                    <div className="p-3 bg-surface-container/30 rounded-xl hover:bg-surface-container transition-colors cursor-pointer">
-                      <p className="text-sm font-bold">Your post is trending!</p>
-                      <p className="text-xs text-on-surface-variant mt-1">Spring Campaign Teaser reached 10k views.</p>
-                    </div>
-                    <div className="p-3 bg-surface-container/30 rounded-xl hover:bg-surface-container transition-colors cursor-pointer">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Sparkles className="w-3 h-3 text-primary" />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Insight</span>
-                      </div>
-                      <p className="text-sm font-bold">New follower milestone reached</p>
-                      <p className="text-xs text-on-surface-variant mt-1">You just crossed 850k total followers.</p>
-                    </div>
+                    {notifications.length === 0 ? (
+                       <div className="p-4 text-center text-on-surface-variant text-sm">No new notifications</div>
+                    ) : (
+                      notifications.map(n => (
+                        <div key={n.id} className="p-3 bg-surface-container/30 rounded-xl hover:bg-surface-container transition-colors cursor-pointer">
+                          <p className="text-sm font-bold">{n.title}</p>
+                          <p className="text-xs text-on-surface-variant mt-1">{n.message}</p>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </motion.div>
               )}

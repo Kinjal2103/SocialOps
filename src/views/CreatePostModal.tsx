@@ -161,6 +161,7 @@ const CreatePostModal = ({ isOpen, onClose, user }: { isOpen: boolean, onClose: 
       const successMsg = status === 'draft' ? "Draft saved successfully!" : status === 'scheduled' ? "Post scheduled!" : "Post published!";
       
       window.dispatchEvent(new CustomEvent('app-toast', { detail: successMsg }));
+      window.dispatchEvent(new CustomEvent('local-notification', { detail: `Your ${contentType.toLowerCase()} has been ${status === 'scheduled' ? 'scheduled' : 'published'} successfully!` }));
       onClose();
     } catch (err) {
       setSubmitError('Failed to submit post.');

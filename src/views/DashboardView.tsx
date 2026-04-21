@@ -15,6 +15,7 @@ import { BASE_URL, getToken, saveToken, removeToken } from '../constants';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
 import { Toast } from '../components/Toast';
+import { useSocket } from '../hooks/useSocket';
 
 const getImageUrl = (url: string, seed: string) => {
   if (!url) return `https://picsum.photos/seed/${seed}/800/600`;
@@ -39,6 +40,7 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
   const [toast, setToast] = useState<string | null>(null);
   const [isInsightApplied, setIsInsightApplied] = useState(false);
   const [isRefreshingInsight, setIsRefreshingInsight] = useState(false); // UPDATED: added matching state
+  const socket = useSocket(user?.id);
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -97,6 +99,36 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
   };
 
   // UPDATED: New refresh insight handler
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleLiveEngagement = (payload: any) => {
+      setDashboardStats(prev => {
+        if (!prev || !prev.computed || !prev.computed.recentPosts) return prev;
+        
+        const updatedPosts = prev.computed.recentPosts.map((post: any) => {
+          if (post._id === payload.postId) {
+            return { ...post, likes: payload.likes, comments: payload.comments };
+          }
+          return post;
+        });
+
+        return {
+          ...prev,
+          computed: {
+            ...prev.computed,
+            recentPosts: updatedPosts
+          }
+        };
+      });
+    };
+
+    socket.on('engagement:live', handleLiveEngagement);
+    return () => {
+      socket.off('engagement:live', handleLiveEngagement);
+    };
+  }, [socket]);
+
   const handleRefreshInsight = async () => {
     try {
       setIsRefreshingInsight(true);

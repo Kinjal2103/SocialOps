@@ -27,6 +27,9 @@ const io = new Server(httpServer, {
 const schedulerController = require('./controllers/schedulerController');
 schedulerController.startScheduler(io);
 
+const { startLiveEngagementEngine } = require('./services/liveEngagementSim');
+startLiveEngagementEngine(io);
+
 // Analytics Accumulator Cron
 const { accumulateDailyAnalytics } = require('./services/analyticsAccumulatorService');
 cron.schedule('0 0 * * *', accumulateDailyAnalytics);
