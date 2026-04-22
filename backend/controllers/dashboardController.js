@@ -125,14 +125,44 @@ exports.getStats = async (req, res) => {
 exports.refreshInsights = async (req, res) => {
   try {
     const userId = req.user.id;
+
+    // Fetch user's analytics
+    const AnalyticsData = require('../models/AnalyticsData');
+    const analytics = await AnalyticsData.findOne({ userId });
+    
+    let weeklyEngagement = [2400, 3100, 2800, 4200];
+    let weeklyReach = [18000, 21000, 19500, 24500];
+    let topPlatform = "instagram";
+    let totalFollowers = 842910;
+    let audienceTopCountry = "United States";
+    
+    if (analytics) {
+      if (analytics.engagementHistory && analytics.engagementHistory.length > 0) {
+        weeklyEngagement = analytics.engagementHistory.slice(-4).map(e => (e.rate || 0) * 1000);
+      }
+      if (analytics.followerHistory && analytics.followerHistory.length > 0) {
+        weeklyReach = analytics.followerHistory.slice(-4).map(e => e.count || 0);
+        totalFollowers = analytics.followerHistory[analytics.followerHistory.length - 1].count || 0;
+      }
+      if (analytics.audienceRegions && analytics.audienceRegions.length > 0) {
+        audienceTopCountry = analytics.audienceRegions[0].label || "United States";
+      }
+      if (analytics.platformStats) {
+        const platforms = Object.keys(analytics.platformStats);
+        if (platforms.length > 0) {
+           topPlatform = platforms.reduce((a, b) => analytics.platformStats[a].engagement > analytics.platformStats[b].engagement ? a : b) || "instagram";
+        }
+      }
+    }
+
     // Generate fresh insight using the service
     const freshInsightData = await generateInsight({
-      weeklyEngagement: [2400, 3100, 2800, 4200], // Example data for prompt
-      weeklyReach: [18000, 21000, 19500, 24500],
+      weeklyEngagement,
+      weeklyReach,
       topPostType: "Reel",
-      topPlatform: "instagram",
-      totalFollowers: 842910,
-      audienceTopCountry: "United States"
+      topPlatform,
+      totalFollowers,
+      audienceTopCountry
     });
     
     const insightText = freshInsightData.text || freshInsightData;

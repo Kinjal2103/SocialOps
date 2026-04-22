@@ -18,7 +18,7 @@ const httpServer = http.createServer(app);
 
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : ['http://localhost:3000', 'http://localhost:3001'],
     methods: ['GET', 'POST']
   }
 });
@@ -47,7 +47,8 @@ io.on('connection', (socket) => {
 module.exports.io = io;
 
 app.use(cors({
-  origin: 'http://localhost:3000'
+  origin: process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',') : ['http://localhost:3000', 'http://localhost:3001'],
+  credentials: true
 }));
 
 app.use(express.json());

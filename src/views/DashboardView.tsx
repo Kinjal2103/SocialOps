@@ -34,7 +34,6 @@ const getGreeting = (name: string) => {
 
 const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: (v: View) => void, user: User | null, onLogout: () => void, openCreateModal: () => void }) => {
   const [dashboardStats, setDashboardStats] = useState<any>(null);
-  const [recentPosts, setRecentPosts] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -65,8 +64,6 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
         if (!statsRes.ok) throw new Error('Failed to fetch data');
         const statsData = await statsRes.json();
         setDashboardStats(statsData);
-        // UPDATED: populate recentPosts from computed section
-        setRecentPosts(statsData.computed?.recentPosts || []);
       } catch (err) {
         console.error('Dashboard fetch error:', err);
         setError('Failed to load dashboard data. Please make sure the backend server was restarted.');
@@ -174,6 +171,8 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
     { name: "Sam K", color: "bg-secondary text-white" },
     { name: "Jordan T", color: "bg-tertiary text-white" }
   ];
+
+  const recentPosts = dashboardStats?.computed?.recentPosts || [];
 
   return (
     <div className="min-h-screen bg-background relative">

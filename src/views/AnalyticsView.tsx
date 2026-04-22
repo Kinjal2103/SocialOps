@@ -7,6 +7,7 @@ import { BASE_URL, getToken, removeToken } from '../constants';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
+import { useSocket } from '../hooks/useSocket';
 
 const AnalyticsView = ({ setView, user, onLogout }: { setView: (v: View) => void, user: User | null, onLogout: () => void }) => {
   const [activeTab, setActiveTab] = useState<'Engagement' | 'Reach' | 'Conversions'>('Engagement');
@@ -15,6 +16,7 @@ const AnalyticsView = ({ setView, user, onLogout }: { setView: (v: View) => void
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const socket = useSocket(user?.id);
 
   const fetchAnalytics = async () => {
     try {
@@ -80,6 +82,47 @@ const AnalyticsView = ({ setView, user, onLogout }: { setView: (v: View) => void
   useEffect(() => {
     fetchAnalytics();
   }, [onLogout, setView]);
+
+  useEffect(() => {
+    if (!socket) return;
+    
+    const handleAnalyticsLive = (payload: any) => {
+      setAnalyticsData((prev: any) => {
+        if (!prev) return prev;
+        
+        const updated = { ...prev };
+        
+        if (updated.kpis) {
+           updated.kpis.impressions = (updated.kpis.impressions || 0) + payload.impressionsAdded;
+           if (payload.followerAdded) {
+               updated.kpis.followers = (updated.kpis.followers || 0) + payload.followerAdded;
+           }
+        }
+        
+        if (updated.weeklyKpis) {
+           updated.weeklyKpis.impressions = (updated.weeklyKpis.impressions || 0) + payload.impressionsAdded;
+           updated.weeklyKpis.comments = (updated.weeklyKpis.comments || 0) + payload.commentsAdded;
+        }
+
+        if (updated.platformStats && payload.platform && updated.platformStats[payload.platform]) {
+           updated.platformStats[payload.platform].engagement = (updated.platformStats[payload.platform].engagement || 0) + payload.likesAdded;
+        }
+
+        if (payload.followerAdded > 0 && updated.followerHistory && updated.followerHistory.length > 0) {
+           const history = [...updated.followerHistory];
+           history[history.length - 1] = { ...history[history.length - 1], count: history[history.length - 1].count + payload.followerAdded };
+           updated.followerHistory = history;
+        }
+        
+        return updated;
+      });
+    };
+
+    socket.on('analytics:live', handleAnalyticsLive);
+    return () => {
+      socket.off('analytics:live', handleAnalyticsLive);
+    };
+  }, [socket]);
 
   const handleExport = async () => {
     try {

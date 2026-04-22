@@ -49,7 +49,9 @@ const startLiveEngagementEngine = (io) => {
       }
 
       // Slightly increase follower count for the user on DashboardStats randomly
+      let followerAdded = 0;
       if (Math.random() > 0.7) {
+        followerAdded = 1;
         const stats = await DashboardStats.findOne({ userId: post.userId });
         if (stats) {
           const currentFollowers = stats.totalFollowers ?? stats.followers?.total ?? 0;
@@ -57,6 +59,41 @@ const startLiveEngagementEngine = (io) => {
           await stats.save();
           // We can optionally push a stats update socket event, but the Dashboard refreshes manually or on initial load.
         }
+      }
+
+      // Update AnalyticsData for dynamic analytics view
+      try {
+        const analytics = await require('../models/AnalyticsData').findOne({ userId: post.userId });
+        if (analytics) {
+          if (!analytics.weeklyKpis) analytics.weeklyKpis = { impressions: 0, clicks: 0, shares: 0, comments: 0 };
+          
+          const impressionsAdded = likesAdded * 5;
+          analytics.weeklyKpis.impressions = (analytics.weeklyKpis.impressions || 0) + impressionsAdded;
+          if (isComment) {
+            analytics.weeklyKpis.comments = (analytics.weeklyKpis.comments || 0) + 1;
+          }
+
+          const platform = post.platform || 'instagram';
+          if (analytics.platformStats && analytics.platformStats[platform]) {
+            analytics.platformStats[platform].engagement = (analytics.platformStats[platform].engagement || 0) + likesAdded;
+          }
+
+          if (followerAdded > 0 && analytics.followerHistory && analytics.followerHistory.length > 0) {
+             analytics.followerHistory[analytics.followerHistory.length - 1].count += 1;
+          }
+
+          await analytics.save();
+
+          io.to(post.userId.toString()).emit('analytics:live', {
+             impressionsAdded,
+             commentsAdded: isComment ? 1 : 0,
+             platform,
+             likesAdded,
+             followerAdded
+          });
+        }
+      } catch (err) {
+        console.error('Failed to update AnalyticsData in live simulator:', err);
       }
 
     } catch (err) {
