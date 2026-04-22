@@ -969,6 +969,7 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const isDashboardConnected = Boolean(dashboardStats?.isConnected);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1128,12 +1129,12 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
                     transition={{ duration: 2, ease: "easeInOut" }}
-                    d="M0 100 Q 50 20, 100 80 T 200 40 T 300 90 T 400 30" 
+                    d={isDashboardConnected ? "M0 100 Q 50 20, 100 80 T 200 40 T 300 90 T 400 30" : "M0 100 L400 100"}
                     fill="none" 
                     stroke="url(#lineGrad)" 
                     strokeWidth="4" 
                     strokeLinecap="round"
-                    className="opacity-80"
+                    className={cn("opacity-80", !isDashboardConnected && "opacity-30")}
                   />
                   <defs>
                     <linearGradient id="lineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -1142,9 +1143,9 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                     </linearGradient>
                   </defs>
                   <motion.circle 
-                    animate={{ scale: [1, 1.5, 1] }}
-                    transition={{ repeat: Infinity, duration: 2 }}
-                    cx="400" cy="30" r="6" fill="#a23256" 
+                    animate={isDashboardConnected ? { scale: [1, 1.5, 1] } : { scale: 1 }}
+                    transition={isDashboardConnected ? { repeat: Infinity, duration: 2 } : { duration: 0 }}
+                    cx="400" cy={isDashboardConnected ? "30" : "100"} r="6" fill="#a23256" 
                   />
                 </svg>
               </div>
@@ -1175,7 +1176,7 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                     />
                   </div>
                 </div>
-                <Button variant="white" className="flex-shrink-0" onClick={handleApplyInsight}>Apply Now</Button>
+                <Button variant="white" className="flex-shrink-0" onClick={handleApplyInsight} disabled={!isDashboardConnected}>Apply Now</Button>
               </div>
               <div className="absolute -bottom-10 -right-10 w-48 h-48 bg-primary/5 rounded-full blur-3xl" />
             </Card>
@@ -1189,7 +1190,7 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                 <p className="text-on-surface-variant/50 text-[10px] font-bold uppercase tracking-widest">Top performing territories</p>
               </div>
               <div className="space-y-8">
-                {dashboardStats?.audienceBreakdown?.map((item: any, idx: number) => (
+                {dashboardStats?.audienceBreakdown?.length ? dashboardStats.audienceBreakdown.map((item: any, idx: number) => (
                   <div key={item.country}>
                     <div className="flex justify-between items-center mb-3">
                       <span className="text-sm font-bold">{item.country}</span>
@@ -1205,7 +1206,11 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                       />
                     </div>
                   </div>
-                ))}
+                )) : (
+                  <div className="rounded-2xl border border-dashed border-outline-variant/30 p-6 text-sm font-medium text-on-surface-variant/60">
+                    Connect an account to populate audience breakdown.
+                  </div>
+                )}
                 <Button variant="ghost" className="w-full mt-4" onClick={() => setView('analytics')}>View Full Report</Button>
               </div>
             </Card>
@@ -1229,12 +1234,13 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                 {dashboardStats?.activityDensity?.map((val: number, i: number) => (
                   <motion.div 
                     key={i}
-                    whileHover={{ scale: 1.2 }}
+                    whileHover={isDashboardConnected ? { scale: 1.2 } : undefined}
                     initial={{ opacity: 0, scale: 0.5 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: i * 0.02 }}
                     className={cn(
-                      "aspect-square rounded-full cursor-pointer",
+                      "aspect-square rounded-full",
+                      isDashboardConnected && "cursor-pointer",
                       val >= 0.8 ? "bg-primary" : 
                       val >= 0.5 ? "bg-primary/60" : 
                       val >= 0.2 ? "bg-primary/30" : "bg-primary/10"
@@ -1252,14 +1258,16 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
               <div className="relative z-10 flex flex-col justify-between h-full text-white">
                 <div>
                   <div className="flex items-center gap-3 mb-6">
-                    <span className="w-2 h-2 rounded-full bg-tertiary animate-ping" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-tertiary">Anomaly Detected</span>
+                    <span className={cn("w-2 h-2 rounded-full", isDashboardConnected ? "bg-tertiary animate-ping" : "bg-white/40")} />
+                    <span className={cn("text-[10px] font-bold uppercase tracking-widest", isDashboardConnected ? "text-tertiary" : "text-white/60")}>
+                      {isDashboardConnected ? "Anomaly Detected" : "No Data"}
+                    </span>
                   </div>
                   <h3 className="text-xl font-bold leading-snug">{dashboardStats?.anomaly?.title}</h3>
                   <p className="text-on-surface-variant/70 text-xs mt-3">{dashboardStats?.anomaly?.description}</p>
                 </div>
                 <div className="mt-10 flex items-end gap-2 h-24">
-                  {[20, 35, 25, 95, 30, 15, 20].map((h, i) => (
+                  {(isDashboardConnected ? [20, 35, 25, 95, 30, 15, 20] : [0, 0, 0, 0, 0, 0, 0]).map((h, i) => (
                     <motion.div 
                       key={i}
                       initial={{ height: 0 }}
