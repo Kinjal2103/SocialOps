@@ -43,7 +43,7 @@ exports.getStats = async (req, res) => {
     const engagementRate = cachedStats?.engagementRate ?? 0;
     const aiInsight = cachedStats?.aiInsight ?? cachedStats?.smartInsight?.text ?? "Welcome to SocialOps! Gather more data for insights.";
     const aiInsightGeneratedAt = cachedStats?.aiInsightGeneratedAt ?? new Date(0);
-    // 1.5 Calculate dynamic Activity Density (4 weeks, 28 days)
+    // 1.5 Calculate activity density only from real published posts in the last 28 days.
     const twentyEightDaysAgo = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000);
     const activityPosts = await Post.find({ userId: userObjId, status: 'published', createdAt: { $gte: twentyEightDaysAgo } }).select('createdAt');
     const dayCounts = new Array(28).fill(0);
@@ -54,22 +54,16 @@ exports.getStats = async (req, res) => {
         dayCounts[27 - dayIndex]++; // latest day is at the end
       }
     });
-    
-    // Add some random base noise to density to make it visually interesting early on
-    const maxDensity = Math.max(...dayCounts, 3);
-    const activityDensity = dayCounts.map(count => (count + Math.random() * 0.5) / maxDensity);
 
-    // Mock Audience Breakdown based dynamically on followers count
-    const baseCountries = ["United States", "United Kingdom", "India", "Canada", "Australia", "Germany"];
-    const audienceBreakdown = [
-      { country: baseCountries[userId.charCodeAt(0) % baseCountries.length], percent: 45 },
-      { country: baseCountries[(userId.charCodeAt(1) || 1) % baseCountries.length], percent: 30 },
-      { country: baseCountries[(userId.charCodeAt(2) || 2) % baseCountries.length], percent: 25 }
-    ];
-    let anomalyData = cachedStats?.anomaly;
-    if (!anomalyData || !anomalyData.title) {
-       anomalyData = { title: "Spike in activity", description: "You received 45% more likes today." };
-    }
+    const maxDensity = Math.max(...dayCounts, 0);
+    const activityDensity = maxDensity > 0
+      ? dayCounts.map(count => count / maxDensity)
+      : [];
+
+    const audienceBreakdown = Array.isArray(cachedStats?.audienceBreakdown)
+      ? cachedStats.audienceBreakdown
+      : [];
+    const anomalyData = cachedStats?.anomaly?.title ? cachedStats.anomaly : null;
     
     const isStale = (Date.now() - new Date(aiInsightGeneratedAt).getTime()) > 6 * 60 * 60 * 1000;
 

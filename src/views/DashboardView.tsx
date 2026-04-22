@@ -173,6 +173,9 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
   ];
 
   const recentPosts = dashboardStats?.computed?.recentPosts || [];
+  const audienceBreakdown = dashboardStats?.audienceBreakdown || [];
+  const activityDensity = dashboardStats?.activityDensity || [];
+  const anomaly = dashboardStats?.anomaly;
 
   return (
     <div className="min-h-screen bg-background relative">
@@ -315,8 +318,10 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                       <div className="h-4 w-10 bg-surface-container animate-pulse rounded-lg" />
                     </div>
                   ))
+                ) : audienceBreakdown.length === 0 ? (
+                  <p className="text-sm text-on-surface-variant font-medium">No audience data yet. Publish posts and connect accounts to see territory insights.</p>
                 ) : (
-                  dashboardStats?.audienceBreakdown?.map((item: any, idx: number) => (
+                  audienceBreakdown.map((item: any, idx: number) => (
                     <div key={item.country}>
                       <div className="flex justify-between items-center mb-3">
                         <span className="text-sm font-bold">{item.country}</span>
@@ -358,9 +363,13 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                   Array.from({ length: 28 }).map((_, i) => (
                     <div key={i} className="aspect-square rounded-full bg-surface-container animate-pulse" />
                   ))
+                ) : activityDensity.length === 0 ? (
+                  <div className="col-span-7">
+                    <p className="text-sm text-on-surface-variant font-medium">No posting activity yet. Your last 28 days of publishing will appear here once you publish content.</p>
+                  </div>
                 ) : (
                   Array.from({ length: 28 }).map((_, i) => {
-                    const density = dashboardStats?.activityDensity?.[i] || 0;
+                    const density = activityDensity[i] || 0;
                     const colorClass = density >= 0.8 ? 'bg-primary' :
                       density >= 0.5 ? 'bg-primary/60' :
                         density >= 0.2 ? 'bg-primary/30' : 'bg-primary/10';
@@ -399,10 +408,15 @@ const DashboardView = ({ setView, user, onLogout, openCreateModal }: { setView: 
                       <div className="h-4 w-3/4 bg-white/20 animate-pulse rounded-lg mt-3" />
                       <div className="h-4 w-1/2 bg-white/20 animate-pulse rounded-lg" />
                     </div>
+                  ) : anomaly ? (
+                    <>
+                      <h3 className="text-xl font-bold leading-snug">{anomaly.title}</h3>
+                      <p className="text-on-surface-variant/70 text-xs mt-3">{anomaly.description}</p>
+                    </>
                   ) : (
                     <>
-                      <h3 className="text-xl font-bold leading-snug">{dashboardStats?.anomaly?.title}</h3>
-                      <p className="text-on-surface-variant/70 text-xs mt-3">{dashboardStats?.anomaly?.description}</p>
+                      <h3 className="text-xl font-bold leading-snug">No anomalies detected</h3>
+                      <p className="text-on-surface-variant/70 text-xs mt-3">We&apos;ll surface unusual spikes or drops here once your account has enough activity.</p>
                     </>
                   )}
                 </div>

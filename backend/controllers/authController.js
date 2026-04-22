@@ -43,7 +43,7 @@ const registerUser = async (req, res) => {
     });
 
     if (user) {
-      bootstrapNewUser(user._id);
+      await bootstrapNewUser(user._id);
       
       res.status(201).json({
         user: {
